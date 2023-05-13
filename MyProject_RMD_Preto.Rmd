@@ -1,0 +1,945 @@
+---
+title: "MyProject - NYC Property Sales"
+author: "Anton Preťo"
+date: "May 2023"
+output: pdf_document
+---
+
+```{r setup, echo = FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(timeout = 120)
+options(digits=7)
+```
+  
+## Executive Summary
+
+This project is part of the HarvardX PH125.9x Data Science: Capstone online course. \
+The main aim of the project is use Machine Learning techniques to predict values of the Y variable by showing skills and abilities gained during courses attended. To do this, we need to to have cleaned and prepared dataset. We are using Random Forest (RF) Machine Learning process to develop suitable predicting algorithm by tuning the parameters and evaluating by RMSE. \
+The most suitable (with the lowest RMSE) RF model that is used on test dataset RF with tuneRF mTry value and chosen trees with RMSE of 0.5146248. Final RMSE with model used on test data is 0.5032866. \
+We are using R studio software to show different ways how to deal with raw dataset, which methods can be used to clean, edit and prepare downloaded dataset for further data analysis and machine Learning process. Well prepared dataset is one of the fundamentals of good analysis. \
+To show this we are using Kaggle dataset about NYC property sales over a 12-month period with mostly raw unedited data. After inspecting dataset We are splitting and extracting date, adding borough name instead of numeric value, calculating property age, removing rows containing NAs and dealing with outliers and 0 values. After editing and cleaning dataset we there is 37751 rows containing data (44.7% of default dowloaded dataset). \
+Second aim of the project is to use cleaned dataset for correlation analysis to find out if there is linear relationship between variables. We are mostly interested in correlation coefficients connected with variable containing sale price of the property. We found out that there is correlation equal to 1 between Residential Units and Total Units and no correlation higher than 0.7 except between land and gross sq feet. Sale price is positively correlated with Total units and Residental units, Land and Gross sq feet, Number of commercial units and Tax class. It is also negatively correlated with Borough and Block and Year Built. \
+Third aim of the project is to standardize/transform/normalize data. Using standardization we were able to achieve a standardized data format across dataset. Standardized data suits better for Machine Learning techniques.
+We were able to fulfill all of the aims of the project.
+
+## Dataset and Methods
+
+This project uses dataset "NYC Property Sales" by Kaggle and can be downloaded [here](https://www.kaggle.com/datasets/new-york-city/nyc-property-sales/download?datasetVersionNumber=1) or [here](https://github.com/antonpreto/HarvardX-PH125.9x_MovieLens_Project).\
+This dataset is a record of every building or building unit (apartment, etc.) sold in the New York City property market over a 12-month period (September 2016 - August 2017). It contains the location, address, type, sale price, and sale date of building units sold.\
+It is mostly raw dataset that needs to be cleaned and edited using appropriate methods descripted below.\
+For computations we are using R version 4.2.2 (The R Project for Statistical Computing) and RStudio Desktop (Open Source Edition AGPL v3) with appropriate packages.
+
+```{r basic dataset, results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+if(!require(knitr)) install.packages("knitr", repos = "http://cran.us.r-project.org")
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org")
+if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org")
+if(!require(ggcorrplot)) install.packages("ggcorrplot", repos = "http://cran.us.r-project.org")
+if(!require(fastDummies)) install.packages("fastDummies", repos = "http://cran.us.r-project.org")
+if(!require(randomForest)) install.packages("randomForest", repos = "http://cran.us.r-project.org")
+if(!require(DAAG)) install.packages("DAAG", repos = "http://cran.us.r-project.org")
+if(!require(VIM)) install.packages("VIM", repos = "http://cran.us.r-project.org")
+if(!require(plotly)) install.packages("plotly", repos = "http://cran.us.r-project.org")
+if(!require(ROCR)) install.packages("ROCR", repos = "http://cran.us.r-project.org")
+if(!require(pROC)) install.packages("pROC", repos = "http://cran.us.r-project.org")
+if(!require(ranger)) install.packages("ranger", repos = "http://cran.us.r-project.org")
+if(!require(broom)) install.packages("broom", repos = "http://cran.us.r-project.org")
+if(!require(xgboost)) install.packages("xgboost", repos = "http://cran.us.r-project.org")
+
+library(tidyverse)
+library(caret)
+library(ggplot2)
+library(knitr)
+library(dplyr)
+library(lubridate)
+library(ggcorrplot)
+library(fastDummies)
+library(randomForest)
+library(DAAG)
+library(VIM)
+library(plotly)
+library(ROCR)
+library(pROC)
+library(ranger)
+library(broom)
+library(xgboost)
+
+# Dataset:
+# https://www.kaggle.com/datasets/new-york-city/nyc-property-sales/download?datasetVersionNumber=1
+# https://github.com/antonpreto/HarvardX-PH125.9x_MovieLens_Project
+
+options(timeout = 120)
+
+NYC_prop_sales<-read.csv("https://raw.githubusercontent.com/antonpreto/-HarvardX-PH125.9x_MyProject_NYC_prop_sales/main/nyc-rolling-sales.csv")
+as.data.frame(NYC_prop_sales)
+sales <- NYC_prop_sales
+```
+
+## Inspecting dataset
+The first step of any data related task is to inspect the data we are dealing with. This is crucial for data wrangling as well, since we need to explore the current structure of the data, in order to identify the required transformations. \
+After downloading and creating datasets we need to inspect them. We see main categories. We can see that we need to edit some of the variable types and to deal with NAs. We need to clean and prepare data for further analysis possible. We are mostly interested in Sales Price data. 
+
+```{r str sales, echo = FALSE}
+names(sales)
+```
+
+Before editing, there is 84.548 rows of data.
+
+```{r nrow sales, echo = FALSE}
+nrow(sales)
+```
+
+First, we need to edit type of some variables. Then we also need to add new column with borough name instead of numeric value where Manhattan is defined as number 1, Bronx is 2, Brooklyn is 3, Queens is 4, and Staten Island is number 5. For better interpretations we are adding new column with Sale Price in Millions.
+
+```{r editing and borough and millions, results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+suppressWarnings(sales <- sales %>%
+  mutate(LAND.SQUARE.FEET = as.integer(LAND.SQUARE.FEET),
+         GROSS.SQUARE.FEET = as.integer(GROSS.SQUARE.FEET),
+         SALE.PRICE = as.integer(SALE.PRICE),
+         SALE.DATE = as.Date(SALE.DATE)))
+
+sales <- sales %>%
+  mutate(BOROUGH2 = BOROUGH)
+
+# Editing and adding borough name instead of numeric value
+sales$BOROUGH2[sales$BOROUGH2 == '1'] <- 'Manhattan'
+sales$BOROUGH2[sales$BOROUGH2 == '2'] <- 'Bronx'
+sales$BOROUGH2[sales$BOROUGH2 == '3'] <- 'Brooklyn'
+sales$BOROUGH2[sales$BOROUGH2 == '4'] <- 'Queens'
+sales$BOROUGH2[sales$BOROUGH2 == '5'] <- 'Staten Island'
+
+sales <- sales %>%
+  mutate(SALE.PRICE.M = SALE.PRICE/1000000)
+```
+
+Next step is to calculate property age and subtract month from Sale date.
+
+```{r year, results='hide', echo = FALSE, warning=FALSE, message=FALSE}
+sales$YEAR.BUILT[sales$YEAR.BUILT == '0'] <- 'NA'           # if 0 = NA
+
+sales <- sales %>%
+  mutate(Curr_Year = 2017)                
+
+suppressWarnings(sales <- sales %>%
+                   mutate(YEAR.BUILT = as.integer(YEAR.BUILT),
+                          Curr_Year = as.integer(Curr_Year)))
+
+suppressWarnings(sales <- sales %>%         
+  mutate(Prop_Age = Curr_Year - YEAR.BUILT))
+
+sales %>%
+  mutate(SALE.DATE_year = lubridate::year(SALE.DATE), 
+                SALE.DATE_month = lubridate::month(SALE.DATE))
+sales <- sales %>%
+  mutate(SALE.DATE_year = year(SALE.DATE), 
+                SALE.DATE_month = month(SALE.DATE))
+
+suppressWarnings(sales <- sales %>%
+                   mutate(SALE.DATE_year = as.integer(SALE.DATE_year),
+                          SALE.DATE_month = as.integer(SALE.DATE_month)))
+```
+
+The biggest problem with the dataset is that it contains lot of NAs, 0 values, non-logical values, outliers or missing values. \
+
+### Problem 1: 
+NAs in Sale Price (17% of total), Land (31%) and Gross (33%) square feet variables. 
+
+```{r total obs, echo = FALSE, warning=FALSE, message=FALSE}
+sum(is.na(sales$SALE.PRICE)) / length(sales$SALE.PRICE)
+sum(is.na(sales$LAND.SQUARE.FEET)) / length(sales$LAND.SQUARE.FEET)
+sum(is.na(sales$GROSS.SQUARE.FEET)) / length(sales$GROSS.SQUARE.FEET)
+```
+
+### Solution 1: 
+We are removing rows containing NA in SALE.PRICE column.
+
+```{r remove NA sale, echo = FALSE, warning=FALSE, message=FALSE}
+sales_removed <- sales %>% drop_na(SALE.PRICE)
+```
+
+We can check if the problem was solved.
+
+```{r check NA sale, echo = FALSE, warning=FALSE, message=FALSE}
+sum(is.na(sales_removed$SALE.PRICE))
+sum(is.na(sales_removed$SALE.PRICE)) / length(sales$SALE.PRICE)
+```
+
+### Problem 2: 
+Sale Price variable contains outliers and 0 values. Many sales occur with a nonsensically small dollar amount: $0 most commonly. These sales are actually transfers of deeds between parties: for example, parents transferring ownership to their home to a child after moving out for retirement. \
+Using Cumulative Sum of Sale Price in Millions we can see that around 99% of Sale Price are between 100k and 10 million.
+
+```{r editing sale price, echo = FALSE, warning=FALSE, message=FALSE}
+plot1 <- sales_removed %>%
+  ggplot() + 
+  aes(SALE.PRICE.M) + 
+  stat_ecdf(geom = "step", color="#0B625B") + 
+  scale_x_continuous(breaks = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100)) + 
+  labs(x = "Sale Price in Millions", y = "Cumulative Sum of Sale Price in Millions")
+
+plot2 <- sales_removed %>%
+  ggplot() + 
+  aes(SALE.PRICE.M) + 
+  stat_ecdf(geom = "step", color="#0B625B") + 
+  xlim(c(0, 10)) + 
+  labs(x = "Sale Price in Millions", y = "Cumulative Sum of Sale Price in Millions")
+
+# only keep values of sale price that is equal to 100 000 and higher
+sales_removed <- subset(sales_removed, SALE.PRICE>=100000)
+
+# only keep values of sale price below 10 millions or equal to 10 million
+sales_removed <- subset(sales_removed, SALE.PRICE<=10000000)
+```
+
+```{r sale price cummulative plot, echo = FALSE, warning=FALSE, message=FALSE}
+grid.arrange(plot1, plot2, ncol=2)
+```
+
+### Solution 2: 
+We can drop values of Sale Price below 100k and over 10M (removing outliers and non-logical values).
+
+
+### Problem 3: 
+Total Units variable contains outliers and 0 values. Using Cumulative Sum of Total Units we can see that around 99% of Total Units are between 1 and 45.
+
+```{r editing total units, echo = FALSE, warning=FALSE, message=FALSE}
+plot3 <- sales_removed %>%
+  ggplot() + 
+  aes(TOTAL.UNITS) + 
+  stat_ecdf(geom = "step", color="#0B625B") + 
+  xlim(c(0, 2261)) + 
+  labs(x = "TOTAL.UNITS", y = "Cumulative Sum of TOTAL.UNITS")
+
+plot4 <- sales_removed %>%
+  ggplot() + 
+  aes(TOTAL.UNITS) + 
+  stat_ecdf(geom = "step", color="#0B625B") + 
+  xlim(c(0, 50)) + 
+  labs(x = "TOTAL.UNITS", y = "Cumulative Sum of TOTAL.UNITS")
+
+# only keep values of total units that is 1 and higher
+sales_removed <- subset(sales_removed, TOTAL.UNITS>=1)
+
+# only keep values of total units below 45
+sales_removed <- subset(sales_removed, TOTAL.UNITS<=45)
+```
+
+```{r total units price cummulative plot, echo = FALSE, warning=FALSE, message=FALSE}
+grid.arrange(plot3, plot4, ncol=2)
+```
+
+There are properties that has 0 (MIN) and 2261 (MAX) total units.
+
+```{r total units min max before, echo = FALSE, warning=FALSE, message=FALSE}
+min(sales$TOTAL.UNITS, na.rm=TRUE)
+max(sales$TOTAL.UNITS, na.rm=TRUE)
+```
+
+### Solution 3: 
+We can drop values of total units that is 0 and over 45 (removing outliers and non-logical values).
+
+```{r total units min max after, echo = FALSE, warning=FALSE, message=FALSE}
+min(sales_removed$TOTAL.UNITS, na.rm=TRUE)
+max(sales_removed$TOTAL.UNITS, na.rm=TRUE)
+```
+
+### Problem 4: 
+There was 6970 NAs in YEAR.BUILT variable in default dataset.
+
+```{r year built is NA before, echo = FALSE, warning=FALSE, message=FALSE}
+sum(is.na(sales$YEAR.BUILT))
+```
+
+### Solution 4: 
+We can drop values of YEAR.BUILT that is 0 and check results.
+
+```{r year built remove 0, echo = FALSE, warning=FALSE, message=FALSE}
+sales_removed <- sales_removed %>% drop_na(YEAR.BUILT)
+```
+
+```{r year built is NA after, echo = FALSE, warning=FALSE, message=FALSE}
+sum(is.na(sales_removed$YEAR.BUILT))
+```
+
+Another option to deal with outliers in all variables is to define outliers as a numbers out of boundaries of Mean +- 2 standard deviations (SD).  "Mean +- 2SD" should contain around 95% of observations if dataset is large enough. \
+
+## Characteristics of edited Dataset
+
+After editing of the dataset there is 37751 rows containing data (44.7% of default dataset). That's lower than half of the dowloaded rows but to further analysis we need correct structure and data. \
+
+```{r nrow after edit, echo = TRUE, warning=FALSE, message=FALSE}
+nrow(sales_removed)
+```
+
+### Borough and Neighborhood
+Most sales were made in Queens (12443) borough followed by Brooklyn (11117). Divided into Neighborhoods most properties were sold in Flushing-North (1611 sales, Queens) and Bedford–Stuyvesant (753, Brooklyn).
+
+```{r sales borough plot, echo = FALSE, warning=FALSE, message=FALSE}
+sales_removed %>%
+  group_by(BOROUGH2) %>%
+  summarize(count = n()) %>%
+  arrange(-count) %>%
+  top_n(10, count) %>%
+  ggplot(aes(count, reorder(BOROUGH2, count))) +
+  geom_bar(color = "black", fill = "#0B625B", stat = "identity") +
+  xlab("Number of Sales") +
+  ylab(NULL)
+```
+
+### Number of Residential Units and Building Classification
+
+Residential Units are defined as the number of residential units at the listed property. Most properties sold had 1 Residential Unit, that's 35% of sum of all the Residential Unit. \
+The Building Classification is used to describe a property’s constructive use. R4 Building Class (Condo; Residential Unit In Elevator Bldg.) are most common with 7707 sales. \
+Highest median price has properties with higher number of residential units, but there is variability seen in median sale price of properties with residential and commercial units.
+
+```{r price resid commerc, echo = FALSE, warning=FALSE, message=FALSE}
+plot12 <- sales_removed %>% 
+  ggplot(aes(x=SALE.PRICE.M, y=reorder(RESIDENTIAL.UNITS,SALE.PRICE.M,FUN = median))) +                           
+  geom_boxplot() + 
+  xlab("SALE.PRICE in millions") +
+  ylab("RESIDENTIAL.UNITS")
+
+# COMMERCIAL.UNITS: ordered
+plot13 <- sales_removed %>% 
+  ggplot(aes(x=SALE.PRICE.M, y=reorder(COMMERCIAL.UNITS,SALE.PRICE.M,FUN = median))) +                           
+  geom_boxplot() + 
+  xlab("SALE.PRICE in millions") +
+  ylab("COMMERCIAL.UNITS")
+```
+
+```{r price resid commerc plot, echo = FALSE, warning=FALSE, message=FALSE}
+grid.arrange(plot12, plot13, ncol=2)
+```
+
+### Land and Gross square Feet
+Land Square Feet is defined as the land area of the property listed in square feet. \
+
+Gross square Feet is the total area of enclosed space measured to the exterior walls of a building. This is an umbrella term that includes everything in a facility, even unusable spaces. Average sold property had Gross Square Feet of 2333 with median value of 1709. 
+
+```{r Land and Gross data, echo = FALSE, warning=FALSE, message=FALSE}
+plot6 <- sales_removed %>% ggplot(aes(LAND.SQUARE.FEET)) +                                 
+  geom_histogram(color = "black", fill = "#0B625B", bins = 30) +
+  xlab("LAND.SQUARE.FEET") +
+  ylab("Count") + 
+  xlim(c(10, 10000)) +
+  geom_vline(aes(xintercept = median(LAND.SQUARE.FEET, na.rm=TRUE)), color = "red", linewidth = 0.5) +
+  geom_text(aes(x = median(LAND.SQUARE.FEET, na.rm=TRUE)), y = 5100, label = "Median", color = "red", angle=90, vjust = 1, size=4) + 
+  ggtitle("Histogram: LAND.SQ.FT.")
+
+# Distribution of GROSS.SQUARE.FEET
+plot7 <- sales_removed %>% ggplot(aes(GROSS.SQUARE.FEET)) +                                
+  geom_histogram(color = "black", fill = "#0B625B", bins = 30) +
+  xlab("GROSS.SQUARE.FEET") +
+  ylab("Count") + 
+  xlim(c(10, 10000)) +
+  geom_vline(aes(xintercept = median(GROSS.SQUARE.FEET, na.rm=TRUE)), color = "red", linewidth = 0.5) +
+  geom_text(aes(x = median(GROSS.SQUARE.FEET, na.rm=TRUE)), y = 5300, label = "Median", color = "red", angle=90, vjust = 1, size=4) + 
+  ggtitle("Histogram: GROSS.SQ.FT.")
+```
+
+```{r Land and Gross plot, echo=FALSE, fig.height=3.6, message=FALSE, warning=FALSE}
+grid.arrange(plot6, plot7, ncol=2)
+```
+
+
+### Year Built and Property Age
+Average property sold is 64 years old (1952,9 is average year the structure on the property was built). The oldest propert is from 1800.
+
+```{r year and age mean, echo = FALSE, warning=FALSE, message=FALSE}
+# Property Age
+mean(sales_removed$Prop_Age, na.rm=TRUE)
+# Year Built
+mean(sales_removed$YEAR.BUILT, na.rm=TRUE)
+```
+
+```{r year and age plot data, echo = FALSE, warning=FALSE, message=FALSE}
+plot8 <- sales_removed %>% ggplot(aes(YEAR.BUILT)) +                                   # toto
+  geom_histogram(color = "black", fill = "#0B625B", bins = 20) +
+  xlab("YEAR.BUILT") +
+  ylab("Count") + 
+  xlim(c(1850, 2017)) +
+  geom_vline(aes(xintercept = mean(YEAR.BUILT, na.rm=TRUE)), color = "red", linewidth = 0.5) +
+  geom_text(aes(x = mean(YEAR.BUILT, na.rm=TRUE)), y = 4500, label = "Mean", color = "red", angle=90, vjust = 1, size=4) +
+  ggtitle("Histogram: Year Built")
+
+plot9 <- sales_removed %>% ggplot(aes(Prop_Age)) +                                   # toto
+  geom_histogram(color = "black", fill = "#0B625B", bins = 20) +
+  xlab("Prop_Age") +
+  ylab("Count") + 
+  xlim(c(0, 250)) +
+  geom_vline(aes(xintercept = mean(Prop_Age, na.rm=TRUE)), color = "red", linewidth = 0.5) +
+  geom_text(aes(x = mean(Prop_Age, na.rm=TRUE)), y = 9800, label = "Mean", color = "red", angle=90, vjust = 1, size=4) +
+  ggtitle("Histogram: Property Age")
+```
+
+```{r year and age plot, echo = FALSE, fig.height=3.6, warning=FALSE, message=FALSE}
+grid.arrange(plot8, plot9, ncol=2)
+```
+
+### Sale Price
+For the purpose of this analysis this is the most important variable and is defined as Price paid for the property.
+
+```{r sale price distrib plot, echo = FALSE, fig.height=3.6, warning=FALSE, message=FALSE}
+sales_removed %>% ggplot(aes(SALE.PRICE.M)) +                                   # toto
+  geom_histogram(color = "black", fill = "#0B625B", bins = 50) +
+  scale_x_continuous(breaks = c(0,1,2,3,4,5,6,7,8,9,10)) +
+  xlab("SALE.PRICE.M") +
+  ylab("Count") + 
+  geom_vline(aes(xintercept = mean(SALE.PRICE.M, na.rm=TRUE)), color = "red", linewidth = 1) +
+  geom_text(aes(x = mean(SALE.PRICE.M, na.rm=TRUE)), y = 8000, label = "Mean", color = "red", angle=90, vjust = 1) + 
+  geom_vline(aes(xintercept = median(SALE.PRICE.M, na.rm=TRUE)), color = "blue", linewidth = 1) +
+  geom_text(aes(x = median(SALE.PRICE.M, na.rm=TRUE)), y = 8000, label = "Median", color = "blue", angle=90, vjust = 1) +
+  geom_vline(aes(xintercept = mean(SALE.PRICE.M, na.rm=TRUE) + sd(SALE.PRICE.M, na.rm=TRUE)), color = "#000000", size = 1, linetype = "dashed") +
+  geom_vline(aes(xintercept = mean(SALE.PRICE.M, na.rm=TRUE) - sd(SALE.PRICE.M, na.rm=TRUE)), color = "#000000", size = 1, linetype = "dashed") +
+  ggtitle("Histogram: SALE.PRICE")
+```
+
+The average price for sold property is just above 1 million USD.
+
+```{r sale price boxplot, echo = FALSE, warning=FALSE, message=FALSE}
+# Mean
+mean(sales_removed$SALE.PRICE, na.rm=TRUE)
+# Median
+median(sales_removed$SALE.PRICE, na.rm=TRUE)
+```
+
+Most expensive Borough is Manhattan followed by Brooklyn. As visible on Boxplot, Manhattan has also a lot of sales with price close to 10 million. \
+Every property in the city is assigned to one of four tax classes (Classes 1, 2, 3, and 4),
+based on the use of the property. Tax class 2B (Includes all other property that is primarily residential, such as cooperatives and condominiums) has highest average sale price.
+
+```{r borough and tax class plot data, echo = FALSE, warning=FALSE, message=FALSE}
+plot10 <- sales_removed %>% 
+  ggplot(aes(SALE.PRICE.M, BOROUGH2)) +                           
+  geom_boxplot() + 
+  scale_x_continuous(breaks = c(0,1,2,3,4,5,6,7,8,9,10)) +
+  xlab("SALE.PRICE in millions") +
+  ylab("Borough")
+
+# SALE.PRICE boxplot according to Tax class
+plot11 <- sales_removed %>% 
+  ggplot(aes(SALE.PRICE.M, TAX.CLASS.AT.PRESENT)) +                           
+  geom_boxplot() + 
+  scale_x_continuous(breaks = c(0,1,2,3,4,5,6,7,8,9,10)) +
+  xlab("SALE.PRICE in millions") +
+  ylab("TAX.CLASS.AT.PRESENT")
+```
+
+```{r borough and tax class plot, echo = FALSE, fig.height=3.6, warning=FALSE, message=FALSE}
+grid.arrange(plot10, plot11, ncol=2)
+```
+
+In more detailed form, Rentals-Elevator Apartments are the most expensive.
+
+```{r bldg class plot, echo = FALSE, warning=FALSE, message=FALSE}
+sales_removed %>% 
+  ggplot(aes(x=SALE.PRICE.M, y=reorder(BUILDING.CLASS.CATEGORY,SALE.PRICE.M,FUN = median))) +                           
+  geom_boxplot() + 
+  xlab("SALE.PRICE in millions") +
+  ylab("BUILDING.CLASS.CATEGORY")
+```
+
+State Island (pink) has the lowest average sale prices of properties, on the other hand Manhattan has the highest (green).
+
+```{r sale gross sq ft, echo = FALSE, warning=FALSE, message=FALSE}
+sales_removed %>% 
+  ggplot(aes(x=GROSS.SQUARE.FEET, y=SALE.PRICE.M, color = BOROUGH2)) +                           
+  geom_point() + 
+  xlim(c(0, 2e+4)) + 
+  xlab("GROSS.SQUARE.FEET") +
+  ylab("SALE.PRICE.M")
+```
+
+## Correlation Analysis: matrix and visualization
+
+The correlation coefficient is a statistical measure of the strength of a linear relationship between two variables. Its values can range from -1 to 1. A correlation coefficient of -1 describes a perfect negative, or inverse, correlation, with values in one series rising as those in the other decline, and vice versa. A coefficient of 1 shows a perfect positive correlation, or a direct relationship. A correlation coefficient of 0 means there is no linear relationship. \
+We are computing a correlation matrix using variables in edited dataset. After that, we are computing a matrix of correlation p-values.
+
+```{r corr data, echo = FALSE, warning=FALSE, message=FALSE}
+sales_corr <- sales_removed
+sales_corr <- sales_corr[,-c(1,3,4,5,8,9,10,11,20,22,23,24,25,27,28)]
+# Compute a correlation matrix
+corr <- round(cor(sales_corr, use = "complete.obs"), 1)
+# Compute a matrix of correlation p-values
+p.mat <- cor_pmat(sales_corr)
+```
+
+Using package "ggcorrplot" we are showing correlation coefficients in pleasing plot. Correlation coefficients vary from -1 (dark blue) to 1 (red). There is correlation that is equal to 1 between Residential Units and Total Units and no correlation higher than 0.7 except between land and gross sq feet, which is not problem because these two variables are connected. \
+We are mostly interested in correlation coefficients connected with variable SALE.PRICE. We can see that sale price is positively correlated (0.5) with Total units and Residental units (0.4), land and gross sq feet, number of commercial units and tax class. It is also negatively correlated with Borough (Manhattan is defined as number 1) and Block (-0.3) and Year Built.
+
+```{r corr matrix plot, echo = FALSE, warning=FALSE, message=FALSE}
+ggcorrplot(corr, hc.order = TRUE, type = "lower",
+           lab = TRUE, digits = 2, tl.srt = 90, tl.cex = 7, lab_size = 2.5)
+```
+
+## Transforming/Normalizing/Standardizing data
+Given that the data have different units, structure and we need normalized data for modelling we are going to transform/regularize/normalize them. In Standard scaling, also known as Standardization of values, we scale the data values such that the overall statistical summary of every variable has a mean value of zero and an unit variance value. \ 
+The main goal of data normalization is to achieve a standardized data format across dataset. Many models might perform poorly if the numeric features do not more or less follow a standard Gaussian (normal) distribution. \ 
+First, we need to check for missing and NA values in variables. Most of the missing values are in variable Basement which is not that important for us for purposes of the analysis. \
+For variable LAND.SQUARE.FEET we have 7054 NAs and for variable GROSS.SQUARE.FEET we have 7191 NAs. We are using a linear models to predict these values. \
+
+```{r removing basement, echo = FALSE, warning=FALSE, message=FALSE}
+# Removing variable Basement (ASE.MENT) for purpose of Machine Learning.
+sales_removed_ML <- sales_removed[,-8]
+```
+
+```{r NAs and missing values, echo = FALSE, warning=FALSE, message=FALSE}
+aggr(sales_removed_ML, sortVars = TRUE, prop = FALSE, cex.axis = .35, 
+     numbers = TRUE, col = c('grey99','#0B625B'))
+```
+
+```{r predicting missing with linear, echo = FALSE, warning=FALSE, message=FALSE}
+# Creating linear model to predict LAND.SQUARE.FEET NAs values. 
+lm_LAND.SQUARE.FEET <- lm(LAND.SQUARE.FEET ~ TOTAL.UNITS + BOROUGH + YEAR.BUILT + GROSS.SQUARE.FEET + COMMERCIAL.UNITS, 
+                          data = sales_removed_ML, na.action = na.omit)
+
+# Predicting all NAs in variable LAND.SQUARE.FEET with linear model.
+sales_removed_ML$LAND.SQUARE.FEET[is.na(sales_removed_ML$LAND.SQUARE.FEET)] <- predict(lm_LAND.SQUARE.FEET)
+
+# Creating linear model to predict GROSS.SQUARE.FEET NAs values. 
+lm_GROSS.SQUARE.FEET <- lm(GROSS.SQUARE.FEET ~ TOTAL.UNITS + BOROUGH + YEAR.BUILT + LAND.SQUARE.FEET + COMMERCIAL.UNITS, 
+                           data = sales_removed_ML, na.action = na.omit)
+
+# Predicting all NAs in variable GROSS.SQUARE.FEET with linear model.
+sales_removed_ML$GROSS.SQUARE.FEET[is.na(sales_removed_ML$GROSS.SQUARE.FEET)] <- predict(lm_GROSS.SQUARE.FEET)
+```
+
+Before standardization the data were one side skewed. After normalization data are no more skewed and centralized.
+
+```{r standardizing, echo = FALSE, warning=FALSE, message=FALSE}
+sales_removed_ML <- sales_removed_ML %>%
+  mutate(s_LAND.SQUARE.FEET = as.vector(scale(LAND.SQUARE.FEET, center = TRUE, scale = TRUE))) %>%
+  mutate(s_GROSS.SQUARE.FEET = as.vector(scale(GROSS.SQUARE.FEET, center = TRUE, scale = TRUE))) %>%
+  mutate(s_RESIDENTIAL.UNITS = as.vector(scale(RESIDENTIAL.UNITS, center = TRUE, scale = TRUE))) %>%
+  mutate(s_COMMERCIAL.UNITS = as.vector(scale(COMMERCIAL.UNITS, center = TRUE, scale = TRUE))) %>%
+  mutate(s_TOTAL.UNITS = as.vector(scale(TOTAL.UNITS, center = TRUE, scale = TRUE))) %>%
+  mutate(s_YEAR.BUILT = as.vector(scale(YEAR.BUILT, center = TRUE, scale = TRUE))) %>%
+  mutate(s_Prop_Age = as.vector(scale(Prop_Age, center = TRUE, scale = TRUE))) %>%
+  mutate(s_BOROUGH = as.vector(scale(BOROUGH, center = TRUE, scale = TRUE))) %>%
+  mutate(s_SALE.PRICE = as.vector(scale(SALE.PRICE, center = TRUE, scale = TRUE)))
+```
+
+```{r sale before after stand, echo = FALSE, warning=FALSE, message=FALSE}
+# SALE.PRICE.M: Histogram before Standardization
+plot14 <- sales_removed_ML %>% ggplot(aes(SALE.PRICE)) +                                  
+  geom_histogram(color = "black", fill = "#0B625B", bins = 40) +
+  xlab("SALE.PRICE") +
+  ylab("Count") + 
+  geom_vline(aes(xintercept = mean(SALE.PRICE, na.rm=TRUE)), color = "red", linewidth = 1) +
+  geom_text(aes(x = mean(SALE.PRICE, na.rm=TRUE)), y = 10000, label = "Mean", color = "red", angle=90, vjust = 1) + 
+  geom_vline(aes(xintercept = median(SALE.PRICE, na.rm=TRUE)), color = "blue", linewidth = 1) +
+  geom_text(aes(x = median(SALE.PRICE, na.rm=TRUE)), y = 10000, label = "Median", color = "blue", angle=90, vjust = 1) +
+  ggtitle("Histogram: SALE.PRICE")
+
+# s_SALE.PRICE: Histogram after Standardization
+plot15 <- sales_removed_ML %>% ggplot(aes(s_SALE.PRICE)) +                                  
+  geom_histogram(color = "black", fill = "#0B625B", bins = 40) +
+  xlab("Standardized SALE.PRICE") +
+  ylab("Count") + 
+  geom_vline(aes(xintercept = mean(s_SALE.PRICE)), color = "red", linewidth = 1) +
+  geom_text(aes(x = mean(s_SALE.PRICE)), y = 10000, label = "Mean", color = "red", angle=90, vjust = 1) + 
+  geom_vline(aes(xintercept = median(s_SALE.PRICE)), color = "blue", linewidth = 1) +
+  geom_text(aes(x = median(s_SALE.PRICE)), y = 10000, label = "Median", color = "blue", angle=90, vjust = 1) +
+  ggtitle("Histogram: Standardized SALE.PRICE")
+```
+
+```{r sale before after stand plot, echo = FALSE, warning=FALSE, message=FALSE}
+grid.arrange(plot14, plot15, ncol=2)
+```
+
+# Modelling
+We are using Random Forest (RF) Machine Learning process to develop suitable predicting algorithm by tuning the parameters and evaluating by The root mean square error (RMSE).
+First, we are splitting data into training (90%) and testing (10%) set and removing unnecessary variables for the purpose of the analysis. We are training models on training dataset and the best performing model is used to predict on test dataset.
+
+```{r data splitting, echo = FALSE, warning=FALSE, message=FALSE}
+set.seed(1, sample.kind="Rounding") # Using R v4+
+test_index <- createDataPartition(y = sales_removed_ML$s_SALE.PRICE, times = 1, p = 0.1, list = FALSE)
+
+test_set <- sales_removed_ML[test_index, ]
+train_set <- sales_removed_ML[-test_index,]
+temp <- sales_removed_ML[test_index,]
+
+rm(temp)
+
+test_set <- test_set[,!names(test_set) %in% c("X", "NEIGHBORHOOD", "BUILDING.CLASS.CATEGORY", "TAX.CLASS.AT.PRESENT", "BUILDING.CLASS.AT.PRESENT", "ADDRESS", "APARTMENT.NUMBER", "RESIDENTIAL.UNITS", "COMMERCIAL.UNITS", "TOTAL.UNITS", "LAND.SQUARE.FEET", "GROSS.SQUARE.FEET", "BUILDING.CLASS.AT.TIME.OF.SALE", "SALE.PRICE", "SALE.DATE", "BOROUGH2", "SALE.PRICE.M", "Curr_Year", "Prop_Age", "s_YEAR.BUILT", "s_Prop_Age", "s_BOROUGH")]
+train_set <- train_set[,!names(train_set) %in% c("X", "NEIGHBORHOOD", "BUILDING.CLASS.CATEGORY", "TAX.CLASS.AT.PRESENT", "BUILDING.CLASS.AT.PRESENT", "ADDRESS", "APARTMENT.NUMBER", "RESIDENTIAL.UNITS", "COMMERCIAL.UNITS", "TOTAL.UNITS", "LAND.SQUARE.FEET", "GROSS.SQUARE.FEET", "BUILDING.CLASS.AT.TIME.OF.SALE", "SALE.PRICE", "SALE.DATE", "BOROUGH2", "SALE.PRICE.M", "Curr_Year", "Prop_Age", "s_YEAR.BUILT", "s_Prop_Age", "s_BOROUGH")]
+```
+
+Our dependent variable is standardized sale price of the property in millions (s_SALE.PRICE.M). We want to see how we can describe variability in dependent variable and predict using independent variables:\
+
+```{r variable names, echo = FALSE, warning=FALSE, message=FALSE}
+names(train_set)
+```
+
+To evaluate the quality of the models we are using RMSE. RMSE allows us to measure how far predicted values are from observed values in a regression analysis. The larger the difference indicates a larger gap between the predicted and observed values, which means poor regression model fit. In the same way, the smaller RMSE that indicates the better the model. Based on RMSE we can compare the two different models with each other and be able to identify which model fits the data better.
+
+```{r rmse tibble, echo = FALSE, warning=FALSE, message=FALSE}
+rmse_comp <- tibble()
+rmse_comp
+```
+
+## Model: using only average (mean) of values
+Simplest possible prediction and model is using mean of the dependent variable. We predict the same sale price (mean) for all properties sold.
+
+```{r rmse model mean, echo = FALSE, warning=FALSE, message=FALSE}
+mu1 <- mean(train_set$s_SALE.PRICE)
+RMSE_model_1 <- RMSE(train_set$s_SALE.PRICE, mu1)
+rmse_comp <- tibble(Method = "Model: Mean", RMSE = RMSE_model_1)
+```
+
+```{r rmse value model mean, echo = FALSE, warning=FALSE, message=FALSE}
+rmse_comp
+```
+
+## Model: Random Forest with default settings
+Random Forest in R Programming is an ensemble of decision trees. It builds and combines multiple decision trees to get more accurate predictions. It’s a non-linear classification algorithm. Random Forest takes random samples from the observations, random initial variables(columns) and tries to build a model. We are applying it on training set.
+
+```{r rmse value model RF default, echo=FALSE, message=FALSE, warning=FALSE}
+set.seed(77)
+rf_model_1 <- randomForest(s_SALE.PRICE ~ .,
+                           data = train_set, 
+                           ntree = 500,
+                           replace = TRUE,
+                           keep.forest = TRUE,
+                           type = "regression")
+```
+
+```{r model RF default MSE, echo=FALSE, message=FALSE, warning=FALSE}
+rf_model_1_MSE <- rf_model_1$mse[length(rf_model_1$mse)]
+```
+
+```{r model RF default MSE value, echo=TRUE, message=FALSE, warning=FALSE}
+# Mean of squared residuals
+rf_model_1_MSE
+```
+
+```{r model RF default var expl, echo=FALSE, message=FALSE, warning=FALSE}
+rf_model_1_var_expl <- round(100 * rf_model_1$rsq[length(rf_model_1$rsq)], digits = 2)
+```
+
+```{r model RF default var expl value, echo=TRUE, message=FALSE, warning=FALSE}
+# % Var explained
+rf_model_1_var_expl
+```
+
+The mean of squared residuals and % variance explained indicate how well the model fits the data. Residuals are a difference between prediction and the actual value. We can increase or decrease the number of trees (ntree) or the number of variables tried at each split (mtry) and see whether the residuals or % variance change. Default settings are: ntree is set to 500 and default mtry is set to 4.\
+
+
+```{r rmse model RF default values, echo = FALSE, warning=FALSE, message=FALSE}
+rf_model_1_RMSE_default <- sqrt(rf_model_1$mse[length(rf_model_1$mse)])
+rf_model_1_trees_default <- rf_model_1[["call"]][["ntree"]]
+rf_model_1_mtry_default <- rf_model_1[["mtry"]]
+
+rmse_comp <- bind_rows(rmse_comp,
+                    tibble(Method = "Model 1: RF with default settings", 
+                    RMSE = rf_model_1_RMSE_default, 
+                    Trees = rf_model_1_trees_default, 
+                    mTry = rf_model_1_mtry_default))
+```
+
+```{r rmse value RF default model, echo=TRUE, message=FALSE, warning=FALSE}
+rf_model_1_RMSE_default
+```
+
+As first improvement, We are choosing number of trees with lowest mean squared error (MSE). In this case its 485 trees with MSE of 0.2703717. The RMSE of default model with chosen trees is:
+
+```{r rmse value RF default min mse, echo = FALSE, warning=FALSE, message=FALSE}
+rf_model_1_trees_chosen_trees <- which.min(rf_model_1$mse)
+```
+
+```{r rmse comput with chosen trees, echo = FALSE, warning=FALSE, message=FALSE}
+rf_model_1_RMSE_chosen_trees <- sqrt(rf_model_1$mse[which.min(rf_model_1$mse)])
+```
+
+```{r rmse value with chosen trees, echo=TRUE, message=FALSE, warning=FALSE}
+rf_model_1_RMSE_chosen_trees
+```
+
+```{r adding to compar table both rmses, echo = FALSE, warning=FALSE, message=FALSE}
+rmse_comp <- bind_rows(rmse_comp,
+                       tibble(Method = "Model 1: RF with chosen trees (lowest MSE)", 
+                              RMSE = rf_model_1_RMSE_chosen_trees, 
+                              Trees = rf_model_1_trees_chosen_trees, 
+                              mTry = rf_model_1_mtry_default))
+```
+
+Comparison table:
+
+```{r rmse value RF default and chosen trees, echo = FALSE, warning=FALSE, message=FALSE}
+rmse_comp
+```
+
+Here we can see our variables by importance (using default RF model). It looks like ZIP.CODE and BLOCK (connected) with GROSS.SQUARE.FEET are the most important variables in our model followed by YEAR.BUILT and LOT. Node purity is measured by Gini Index which is the the difference between RSS before and after the split on that variable.
+
+```{r var imp creating, echo = FALSE, warning=FALSE, message=FALSE}
+# Creating an object for importance of variables
+importance_var <- rf_model_1[["importance"]]
+
+# Creating data frame using importance
+varImportance <- data.frame(Variables = row.names(importance_var), 
+                            Importance = round(importance_var[,'IncNodePurity'], 0))
+
+rf_model_1_varimpplot2 <- varImpPlot(rf_model_1)
+```
+
+```{r default model var imp plot, echo = FALSE, warning=FALSE, message=FALSE}
+rf_model_1_varimpplot2
+```
+
+## Model: Random Forest with tuneRF tuning
+
+We want enough trees (ntree) to stabalize the error but using too many trees is unncessarily inefficient, especially when using large data sets. Mtry is the number of variables selected at each split is denoted by mtry in randomforest function. We are finding the optimal mtry value and selecting mtry value with minimum out of bag(OOB) error. Tuning starts with mtry = 5 and increasing by a factor of 1.5 until the OOB error stops improving by 1%.\
+Mtry with lowest OOBError of 0.2640916 is 7.
+
+```{r RF with tuneRF tuning, echo = FALSE, fig.height=3.6, warning=FALSE, message=FALSE}
+features <- setdiff(names(train_set), "s_SALE.PRICE")
+set.seed(77)
+rf_model_2_tuneRF <- tuneRF(
+  x          = train_set[features],
+  y          = train_set$s_SALE.PRICE,
+  ntreeTry   = 500,
+  mtryStart  = 5,
+  stepFactor = 1.5,
+  improve    = 0.01)
+print(rf_model_2_tuneRF)
+```
+
+After finding the best performing value of mtry=7 we are applying it on default RF model with ntree=500 and mtry=7.
+
+```{r model 2 tuneRF, echo = FALSE, warning=FALSE, message=FALSE}
+rf_model_2 <- randomForest(s_SALE.PRICE ~ .,
+                           data = train_set, 
+                           ntree = 500,
+                           replace = TRUE,
+                           keep.forest = TRUE,
+                           mtry = 7,
+                           type = "regression")
+```
+
+```{r model RF tuneRF MSE, echo=FALSE, message=FALSE, warning=FALSE}
+rf_model_2_MSE <- rf_model_2$mse[length(rf_model_2$mse)]
+```
+
+```{r model RF tuneRF MSE value, echo=TRUE, message=FALSE, warning=FALSE}
+# Mean of squared residuals
+rf_model_2_MSE
+```
+
+```{r model RF tuneRF var expl, echo=FALSE, message=FALSE, warning=FALSE}
+rf_model_2_var_expl <- round(100 * rf_model_2$rsq[length(rf_model_2$rsq)], digits = 2)
+```
+
+```{r model RF tuneRF var expl value, echo=TRUE, message=FALSE, warning=FALSE}
+# % Var explained
+rf_model_2_var_expl
+```
+
+```{r model 2 tunerf values, echo = FALSE, warning=FALSE, message=FALSE}
+rf_model_2_RMSE_tuneRF <- sqrt(rf_model_2$mse[length(rf_model_2$mse)])
+
+rf_model_2_trees_tuneRF <- rf_model_2[["call"]][["ntree"]]
+
+rf_model_2_mtry_tuneRF <- rf_model_2[["mtry"]]
+
+rmse_comp <- bind_rows(rmse_comp,
+                       tibble(Method = "Model 2: RF with tuneRF mTry", 
+                              RMSE = rf_model_2_RMSE_tuneRF, 
+                              Trees = rf_model_2_trees_tuneRF, 
+                              mTry = rf_model_2_mtry_tuneRF))
+```
+
+The RMSE of RF model with tuneRF mtry of 7 and ntre=500:
+
+```{r model 2 tunerf rmse, echo=TRUE, message=FALSE, warning=FALSE}
+rf_model_2_RMSE_tuneRF
+```
+
+Next, we are applying tuneRF mtry=7 and chosen ntree=485 from default model with lowest MSE to finding out if it can improve our RMSE even more.
+
+```{r model 2 with tunerf mtry and chosen trees, echo = FALSE, warning=FALSE, message=FALSE}
+rf_model_2_chosen_trees <- randomForest(s_SALE.PRICE ~ .,
+                           data = train_set, 
+                           ntree = 485,
+                           replace = TRUE,
+                           keep.forest = TRUE,
+                           mtry = 7,
+                           type = "regression")
+```
+
+```{r model RF tuneRF chosen trees MSE, echo=FALSE, message=FALSE, warning=FALSE}
+rf_model_2_chosen_trees_MSE <- rf_model_2_chosen_trees$mse[length(rf_model_2_chosen_trees$mse)]
+```
+
+```{r model RF tuneRF chosen trees MSE value, echo=TRUE, message=FALSE, warning=FALSE}
+# Mean of squared residuals
+rf_model_2_chosen_trees_MSE
+```
+
+```{r model RF tuneRF chosen trees var expl, echo=FALSE, message=FALSE, warning=FALSE}
+rf_model_2_chosen_trees_var_expl <- round(100 * rf_model_2_chosen_trees$rsq[length(rf_model_2_chosen_trees$rsq)], digits = 2)
+```
+
+```{r model RF tuneRF chosen trees var expl value, echo=TRUE, message=FALSE, warning=FALSE}
+# % Var explained
+rf_model_2_chosen_trees_var_expl
+```
+
+```{r model 2 with tunerf mtry and chosen trees values, echo = FALSE, warning=FALSE, message=FALSE}
+rf_model_2_chosen_trees_RMSE_tuneRF <- sqrt(rf_model_2_chosen_trees$mse[length(rf_model_2_chosen_trees$mse)])
+
+rf_model_2_chosen_trees_trees_tuneRF <- rf_model_2_chosen_trees[["call"]][["ntree"]]
+
+rf_model_2_chosen_trees_mtry_tuneRF <- rf_model_2_chosen_trees[["mtry"]]
+```
+
+The RMSE of RF model with tuneRF mtry=7 and ntre=485:
+
+```{r model 2 with tunerf mtry and chosen trees RMSE, echo=TRUE, message=FALSE, warning=FALSE}
+rf_model_2_chosen_trees_RMSE_tuneRF
+```
+
+```{r model 2 with tunerf mtry and chosen trees adding comp table, echo = FALSE, warning=FALSE, message=FALSE}
+rmse_comp <- bind_rows(rmse_comp,
+                       tibble(Method = "Model 2: RF with tuneRF mTry and chosen trees", 
+                              RMSE = rf_model_2_chosen_trees_RMSE_tuneRF, 
+                              Trees = rf_model_2_chosen_trees_trees_tuneRF, 
+                              mTry = rf_model_2_chosen_trees_mtry_tuneRF))
+```
+
+Updated comparison table:
+
+```{r model 2 with tunerf mtry and chosen trees comp table, echo = FALSE, warning=FALSE, message=FALSE}
+rmse_comp
+```
+
+## Model: Random Forest with Grid Search tuning
+Another method is to define a grid of algorithm parameters to try (search). Each axis of the grid is an algorithm parameter, and points in the grid are specific combinations of parameters. Because we are only tuning one parameter, the grid search is a linear search through a vector of candidate values. We are using XGboost Regression tree model (package).\
+RMSE is being used to select the optimal model using the smallest value. 
+
+```{r model 3 grid search expand and train, error=FALSE, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+train_control <- trainControl(method = "cv", number = 5, search = "grid")
+
+set.seed(77)
+gbmGrid <-  expand.grid(max_depth = c(3, 5, 7), 
+                        nrounds = (1:10)*50,    # number of trees
+                        eta = 0.3,
+                        gamma = 0,
+                        subsample = 1,
+                        min_child_weight = 1,
+                        colsample_bytree = 0.6)
+
+rf_model_3_grid_train <- train(s_SALE.PRICE ~ ., 
+                        data = train_set, 
+                        method = "xgbTree", 
+                        trControl = train_control, 
+                        tuneGrid = gbmGrid)
+```
+
+The values used for the optimal model were nrounds = 100, max_depth = 7, eta = 0.3, gamma = 0, colsample_bytree = 0.6, min_child_weight = 1 and subsample = 1. We are using values nrounds = 100 and mtry=7 in the following model. 
+
+```{r model 3 grid search RF model, echo = FALSE, warning=FALSE, message=FALSE}
+rf_model_3_grid <- randomForest(s_SALE.PRICE ~ .,
+                                 data = train_set, 
+                                 ntree = 100,
+                                 replace = TRUE,
+                                 keep.forest = TRUE,
+                                 mtry = 7,
+                                 max_depth = 7,
+                                 eta = 0.3,
+                                 gamma = 0, 
+                                 colsample_bytree = 0.6, 
+                                 min_child_weight = 1,
+                                 subsample = 1,
+                                 type = "regression")
+```
+
+```{r model RF grid search MSE, echo=FALSE, message=FALSE, warning=FALSE}
+rf_model_3_grid_MSE <- rf_model_3_grid$mse[length(rf_model_3_grid$mse)]
+```
+
+```{r model RF grid search MSE value, echo=TRUE, message=FALSE, warning=FALSE}
+# Mean of squared residuals
+rf_model_3_grid_MSE
+```
+
+```{r model RF grid search var expl, echo=FALSE, message=FALSE, warning=FALSE}
+rf_model_3_grid_var_expl <- round(100 * rf_model_3_grid$rsq[length(rf_model_3_grid$rsq)], digits = 2)
+```
+
+```{r model RF grid search var expl value, echo=TRUE, message=FALSE, warning=FALSE}
+# % Var explained
+rf_model_3_grid_var_expl
+```
+
+```{r model 3 grid search RF model values, echo = FALSE, warning=FALSE, message=FALSE}
+rf_model_3_chosen_trees_RMSE_grid <- sqrt(rf_model_3_grid$mse[length(rf_model_3_grid$mse)])
+
+rf_model_3_chosen_trees_trees_grid <- rf_model_3_grid[["call"]][["ntree"]]
+
+rf_model_3_chosen_trees_mtry_grid <- rf_model_3_grid[["mtry"]]
+```
+
+The RMSE of RF model with Grid Search tuning (XGboost) with values of mtry=7 and ntre=100:
+
+```{r model 3 grid search RF model RMSE, echo=TRUE, message=FALSE, warning=FALSE}
+rf_model_3_chosen_trees_RMSE_grid
+```
+
+```{r model 3 grid search RF comp table add, echo = FALSE, warning=FALSE, message=FALSE}
+rmse_comp <- bind_rows(rmse_comp,
+                       tibble(Method = "Model 3: RF with grid mTry and chosen trees", 
+                              RMSE = rf_model_3_chosen_trees_RMSE_grid, 
+                              Trees = rf_model_3_chosen_trees_trees_grid, 
+                              mTry = rf_model_3_chosen_trees_mtry_grid))
+```
+
+```{r model 3 grid search RF comp table, echo = FALSE, warning=FALSE, message=FALSE}
+rmse_comp
+```
+
+## Final model and predicting
+
+After tuning and comparing all models based on their RMSE we are choosing RF model with tuneRF chosen mtry=7 and number of trees ntree=485 with lowest MSE and applying it on final test data. 
+
+```{r final rmse compar values, echo=TRUE, message=FALSE, warning=FALSE}
+# RF with default settings
+rf_model_1_RMSE_default
+# RF with chosen trees (lowest MSE)
+rf_model_1_RMSE_chosen_trees
+# RF mtry value by tuneRF
+rf_model_2_RMSE_tuneRF
+# RF mtry value by tuneRF and chosen trees
+rf_model_2_chosen_trees_RMSE_tuneRF
+# RF tuned by grid search
+rf_model_3_chosen_trees_RMSE_grid
+```
+
+We are using it to predict sale price (standardized) of the property on a test dataset and showing it using plot.
+
+```{r final predict model, echo = FALSE, warning=FALSE, message=FALSE}
+prediction_final <- predict(rf_model_2_chosen_trees, test_set)
+```
+
+```{r final predict plot, echo = FALSE, warning=FALSE, message=FALSE}
+plot(prediction_final)
+```
+
+RMSE is a measure of how spread out residuals are. In other words, it tells us how concentrated the data is around the line of best fit.
+Final RMSE of best performing model:
+
+```{r final rmse calc, echo = FALSE, warning=FALSE, message=FALSE}
+RMSE_model_final <- RMSE(test_set$s_SALE.PRICE, prediction_final)
+```
+
+```{r final rmse value, echo = FALSE, warning=FALSE, message=FALSE}
+RMSE_model_final
+```
+
+## Possible next work
+The analysis can be extended by for example creating loop for most suitable value of mtry (fine tuning parameters of Random Forest model), Full grid search with ranger package, tuning more parameters or choosing new or deleting current predictors. All calculations and tunings require a lot of time to compute. 
+
+## References
+* Irizarry RA. Introduction to Data Science : Data Analysis and Prediction Algorithms with R. BC Press. Leanpub; 2019.
+* Kaggle. "NYC Property Sales" dataset. Available at https://www.kaggle.com/datasets/new-york-city/nyc-property-sales/download?datasetVersionNumber=1
+* JASON FERNANDO. Investopedia. The Correlation Coefficient: What It Is, What It Tells Investors. Available at https://www.investopedia.com/terms/c/correlationcoefficient.asp
